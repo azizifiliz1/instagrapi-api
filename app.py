@@ -2,35 +2,37 @@ from flask import Flask, request, jsonify
 from instagrapi import Client
 from dotenv import load_dotenv
 import os
+import json # JSON modülünü import ediyoruz
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# Initialize the Client object
+# instagrapi Client nesnesini başlatıyoruz
 cl = Client()
 
-# Get the session ID from environment variables
-SESSION_ID = os.getenv("INSTAGRAM_SESSIONID")
+# Railway'den alacağımız JSON oturum ayarlarını çekeceğiz
+INSTAGRAM_SETTINGS_JSON = os.getenv("INSTAGRAM_SETTINGS_JSON")
 
-# --- IMPORTANT CHANGE STARTS HERE ---
-if SESSION_ID:
+if INSTAGRAM_SETTINGS_JSON:
     try:
-        # Attempt to set the session ID using set_settings
-        cl.set_settings({"sessionid": SESSION_ID})
-        print("INSTAGRAM_SESSIONID loaded successfully.")
+        # Ortam değişkeninden gelen JSON stringini Python dict'e dönüştürüyoruz
+        settings_dict = json.loads(INSTAGRAM_SETTINGS_JSON)
+        # Bu ayarları instagrapi Client'a yüklüyoruz
+        cl.set_settings(settings_dict)
+        print("INSTAGRAM_SETTINGS_JSON yüklendi ve oturum ayarlandı.")
+    except json.JSONDecodeError as e:
+        # Eğer ortam değişkenindeki değer geçerli bir JSON değilse
+        print(f"Hata: INSTAGRAM_SETTINGS_JSON ortam değişkeni geçerli bir JSON değil: {e}")
+        raise ValueError("INSTAGRAM_SETTINGS_JSON ortam değişkeni JSON formatında olmalı.")
     except Exception as e:
-        # Handle cases where set_settings might fail or if the session ID is invalid
-        print(f"Error setting session ID: {e}")
-        # Optionally, you might want to exit or raise an error if the app cannot proceed without a valid session
-        raise ValueError("Failed to set INSTAGRAM_SESSIONID. Application cannot start.")
+        # Diğer olası hatalar için
+        print(f"Oturum ayarları yüklenirken genel bir hata oluştu: {e}")
+        raise ValueError("Oturum ayarları yüklenemedi. Uygulama başlatılamıyor.")
 else:
-    # If SESSION_ID is not found in environment variables
-    print("Warning: INSTAGRAM_SESSIONID environment variable is not set.")
-    # It's crucial to decide how your app behaves if the session ID is missing.
-    # For a production app, you probably want to prevent it from starting.
-    raise ValueError("INSTAGRAM_SESSIONID environment variable is required but not found.")
-# --- IMPORTANT CHANGE ENDS HERE ---
+    # Eğer INSTAGRAM_SETTINGS_JSON ortam değişkeni hiç ayarlanmamışsa
+    print("Uyarı: INSTAGRAM_SETTINGS_JSON ortam değişkeni bulunamadı. Uygulama Instagram'a bağlanamayabilir.")
+    raise ValueError("INSTAGRAM_SETTINGS_JSON ortam değişkeni gereklidir.")
 
 @app.route("/get_user", methods=["GET"])
 def get_user():
@@ -39,13 +41,11 @@ def get_user():
         return jsonify({"error": "username parametresi eksik"}), 400
 
     try:
-        # Ensure the client is logged in/session is valid before making requests
-        # You might want to add a more robust session validation here if needed
         user_info = cl.user_info_by_username(username)
         return jsonify(user_info.dict())
     except Exception as e:
-        # Specific error handling for instagrapi (e.g., login required, user not found)
-        # would be better than a generic exception
+        # Bu kısımda daha spesifik hata yakalama (örneğin instagrapi.exceptions.LoginRequired)
+        # veya JSONDecodeError gibi hataları ayrıştırmak daha iyi olabilir.
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
