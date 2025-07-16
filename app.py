@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 cl = Client()
 SESSION_ID = os.getenv("INSTAGRAM_SESSIONID")
-cl.set_sessionid(SESSION_ID)
+cl.sessionid = SESSION_ID
 
 @app.route("/get_user", methods=["GET"])
 def get_user():
